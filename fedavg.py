@@ -44,7 +44,6 @@ def client_train(client_id, model, data):
     model.fit(data[0], data[1])
 
 def server_aggregation():
-    a=0
     return
 
 

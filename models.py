@@ -11,7 +11,7 @@ def CNN_MNIST(model_name):
     x = MaxPooling2D(pool_size=(2,2))(x)
     x = Flatten()(x)
     x = Dense(512, activation="relu")(x)
-    x = Dense(10)(x)
+    x = Dense(10, activation="softmax")(x)
 
     model = Model(inp, x, name=model_name)
 
