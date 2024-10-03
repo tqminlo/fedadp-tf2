@@ -1,11 +1,13 @@
+import os
 from keras.layers import *
 from keras.models import Model
 import tensorflow as tf
 from keras.optimizers import SGD
 from models import CNN_MNIST
+import numpy as np
 
 
-class ClientAvg:
+class ClientsAvg:
     def __init__(self, num_all_client, ratio_c, batch_size, epochs, lr):
         self.num_all_client = num_all_client
         self.ratio_c = ratio_c
@@ -13,12 +15,23 @@ class ClientAvg:
         self.epochs = epochs
         self.lr = lr
         self.num_client_a_round = int(num_all_client * ratio_c)
-        self.client_models = [CNN_MNIST(f"client{i:03}") for i in range(self.num_client_a_round)]
+        self.client_models = [CNN_MNIST(f"member{i:03}") for i in range(self.num_client_a_round)]
         for model in self.client_models:
-            model.compile(SGD(learning_rate=lr, weight_decay=0.995), loss="categorical_crossentropy", metrics=["acc"])
+            model.compile(SGD(learning_rate=lr, weight_decay=None), loss="sparse_categorical_crossentropy", metrics=["acc"])
+
+    def train_all_members(self, server_w, members_id, dataset_dir):
+        for model in self.client_models:
+            model.load_weights(server_w)
+        for i in range(self.num_client_a_round):
+            model = self.client_models[i]
+            idx = members_id[i]
+            X_train = np.load(os.path.join(dataset_dir, f"X_train_node{idx:03}.npy"))
+            Y_train = np.load(os.path.join(dataset_dir, f"X_train_node{idx:03}.npy"))
+            model.fit(X_train, Y_train, epochs=self.epochs, batch_size=self.batch_size)
 
 
-    # def train(self):
+
+
 
 
 def client_train(client_id, model, data):
