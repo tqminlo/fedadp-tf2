@@ -94,6 +94,8 @@ class FedAvg:
             print(f"---- Round {i}")
             members_id = random.sample(all_id, self.num_participant)
             self.clients.train_all_members("saved/server_w.h5", members_id, self.dataset_dir)
+            for model in self.clients.client_models:
+                model.compile(SGD(learning_rate=self.clients.lr * 0.995), loss="categorical_crossentropy", metrics=["acc"])
             self.server.aggregation(self.clients.num_samples, self.clients.clients_w)
             self.server.eval()
 
