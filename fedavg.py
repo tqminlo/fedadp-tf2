@@ -2,11 +2,12 @@ import os
 from keras.layers import *
 from keras.models import Model
 import tensorflow as tf
-from keras.optimizers import SGD
+from keras.optimizers import SGD, Adam
 from models import CNN_MNIST
 import numpy as np
 import random
 import keras
+from tqdm import tqdm
 
 
 class ClientsAvg:
@@ -19,7 +20,7 @@ class ClientsAvg:
         self.num_client_a_round = int(num_all_client * ratio_c)
         self.client_models = [CNN_MNIST(f"member{i:03}") for i in range(self.num_client_a_round)]
         for model in self.client_models:
-            model.compile(SGD(learning_rate=lr, weight_decay=None), loss="categorical_crossentropy", metrics=["acc"])
+            model.compile(SGD(learning_rate=lr), loss="categorical_crossentropy", metrics=["acc"])
         self.clients_w = {}
         for layer in self.client_models[0].layers:
             if "cv" in layer.name or "den" in layer.name:
@@ -30,21 +31,25 @@ class ClientsAvg:
         for model in self.client_models:
             model.load_weights(server_w)
 
-        for i in range(self.num_client_a_round):
-            print(f"------------- member {i}")
+        pbar = tqdm(range(self.num_client_a_round))
+        for i in pbar:
+            # print(f"------------- member {i}")
             model = self.client_models[i]
             idx = members_id[i]
             X_train = np.load(os.path.join(dataset_dir, f"X_train_node{idx:03}.npy"))
             Y_train = np.load(os.path.join(dataset_dir, f"Y_train_node{idx:03}.npy"))
             X_train = np.expand_dims(X_train, axis=-1) / 255.
+            # X_train = (X_train - 0.1307) / 0.3081
             Y_train = keras.utils.to_categorical(Y_train, num_classes=10)
             self.num_samples[i] = len(X_train)
 
-            model.fit(X_train, Y_train, epochs=self.epochs, batch_size=self.batch_size, verbose=1)
+            model.fit(X_train, Y_train, epochs=self.epochs, batch_size=self.batch_size, verbose=0)
             for layer in model.layers:
                 if "cv" in layer.name or "den" in layer.name:
                     w = layer.get_weights()
                     self.clients_w[layer.name][i] = w
+
+            pbar.set_description(f"Processing client {idx}")
 
 
 class ServerAvg:
@@ -56,6 +61,7 @@ class ServerAvg:
         self.X_test = np.load(os.path.join(eval_dir, "X_test.npy"))
         self.Y_test = np.load(os.path.join(eval_dir, "Y_test.npy"))
         self.X_test = np.expand_dims(self.X_test, axis=-1) / 255.
+        # self.X_test = (self.X_test - 0.1307) / 0.3081
         self.Y_test = keras.utils.to_categorical(self.Y_test, num_classes=10)
 
     def aggregation(self, clients_num_samples, clients_w):
@@ -76,8 +82,7 @@ class ServerAvg:
         self.model.save_weights(self.server_w)
 
     def eval(self):
-        self.model.evaluate(self.X_test, self.Y_test)
-
+        return self.model.evaluate(self.X_test, self.Y_test)
 
 
 class FedAvg:
@@ -90,16 +95,21 @@ class FedAvg:
 
     def pipline(self):
         all_id = [i for i in range(100)]
+        loss = 100
         for i in range(self.num_round):
-            print(f"---- Round {i}")
             members_id = random.sample(all_id, self.num_participant)
+            print(f"---- Round {i}, lr: {self.clients.client_models[0].optimizer.lr.numpy()}, clients: {members_id}")
             self.clients.train_all_members("saved/server_w.h5", members_id, self.dataset_dir)
-            for model in self.clients.client_models:
-                model.compile(SGD(learning_rate=self.clients.lr * 0.995), loss="categorical_crossentropy", metrics=["acc"])
             self.server.aggregation(self.clients.num_samples, self.clients.clients_w)
-            self.server.eval()
+            new_loss = self.server.eval()[0]
+            # if new_loss > loss:
+            #     for model in self.clients.client_models:
+            #         model.compile(SGD(learning_rate=model.optimizer.lr * 0.75), loss="categorical_crossentropy",
+            #                       metrics=["acc"])
+            # else:
+            #     loss = new_loss
 
 
 if __name__ == "__main__":
-    fed_avg = FedAvg(300, 100, 0.1, 10, 5, 0.01, "iid")
+    fed_avg = FedAvg(300, 100, 0.1, 10, 5, 0.01, "niid_shard")
     fed_avg.pipline()
