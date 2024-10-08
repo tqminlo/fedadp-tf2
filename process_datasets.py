@@ -49,21 +49,29 @@ def take_niid_shard_mnist():
         np.save(f"datasets/mnist/niid_shard/Y_train_node{i:03}.npy", Y_train_node)
 
 
-def take_adp_exp_mnist(num_iid=5):
+def take_adp_exp_mnist(num_iid=5, dir_name="5iid5niid_2class"):
     num_niid = 10 - num_iid
     X_train = mnist[0][0]
     Y_train = mnist[0][1]
-    X_train, Y_train = shuffle((X_train, Y_train))
+    X_train, Y_train = shuffle(X_train, Y_train)
+    idx_order = np.argsort(Y_train)[::1]
+    Y_train = Y_train[idx_order]
+    X_train = X_train[idx_order]
     for i in range(num_iid):
-        X_train_node = X_train[i * 600: (i + 1) * 600]
-        Y_train_node = Y_train[i * 600: (i + 1) * 600]
-        np.save(f"datasets/mnist/iid/X_train_iid{i:03}.npy", X_train_node)
-        np.save(f"datasets/mnist/iid/Y_train_iid{i:03}.npy", Y_train_node)
+        X_train_node = [X_train[6000*j+i*60: 6000*j+(i+1)*60] for j in range(10)]
+        Y_train_node = [Y_train[6000*j+i*60: 6000*j+(i+1)*60] for j in range(10)]
+        X_train_node = np.concatenate(X_train_node, axis=0)
+        Y_train_node = np.concatenate(Y_train_node, axis=0)
+        X_train_node, Y_train_node = shuffle(X_train_node, Y_train_node)
+        np.save(f"datasets/mnist/{dir_name}/X_train_node{i:03}.npy", X_train_node)
+        np.save(f"datasets/mnist/{dir_name}/Y_train_node{i:03}.npy", Y_train_node)
+    for i in range(num_niid, 10):
+        a=1
     ####################################################
-
 
 
 if __name__ == "__main__":
     # take_test_mnist()
     # take_iid_mnist()
-    take_niid_shard_mnist()
+    # take_niid_shard_mnist()
+    take_adp_exp_mnist(10, "10iid")
