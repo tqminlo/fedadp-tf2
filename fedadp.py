@@ -85,23 +85,19 @@ class FedAdp:
         self.num_round = num_round
         self.dataset_dir = f"datasets/mnist/{distribution}"
         self.clients = ClientsAdp(batch_size, epochs, lr)
-        self.server = ServerAdp("saved/server_w.h5", "datasets/mnist/test")
+        self.server = ServerAdp("saved/server_w_1.h5", "datasets/mnist/test")
 
     def pipline(self):
-        loss = 100
         for i in range(self.num_round):
             print(f"---- Round {i}, lr: {self.clients.client_models[0].optimizer.lr.numpy()}")
-            self.clients.train_all_members("saved/server_w.h5", self.dataset_dir)
+            self.clients.train_all_members("saved/server_w_1.h5", self.dataset_dir)
             self.server.aggregation(self.clients.num_samples, self.clients.clients_w)
-            new_loss = self.server.eval()[0]
-            # if new_loss > loss:
-            #     for model in self.clients.client_models:
-            #         model.compile(SGD(learning_rate=model.optimizer.lr * 0.75), loss="categorical_crossentropy",
-            #                       metrics=["acc"])
-            # else:
-            #     loss = new_loss
+            self.server.eval()
+
+            for model in self.clients.client_models:
+                model.optimizer.lr = model.optimizer.lr * 0.995
 
 
 if __name__ == "__main__":
-    fed_adp = FedAdp(300, 10, 5, 0.01, "10iid")
+    fed_adp = FedAdp(300, 10, 1, 0.01, "10iid")
     fed_adp.pipline()

@@ -1,6 +1,7 @@
 import keras
 import numpy as np
 from sklearn.utils import shuffle
+import os
 
 mnist = keras.datasets.mnist.load_data()
 
@@ -49,7 +50,8 @@ def take_niid_shard_mnist():
         np.save(f"datasets/mnist/niid_shard/Y_train_node{i:03}.npy", Y_train_node)
 
 
-def take_adp_exp_mnist(num_iid=5, dir_name="5iid5niid_2class"):
+def take_adp_exp_mnist(num_iid=5, x_class=2, dir_name="5iid5niid_2class"):
+    os.makedirs(f"datasets/mnist/{dir_name}", exist_ok=True)
     num_niid = 10 - num_iid
     X_train = mnist[0][0]
     Y_train = mnist[0][1]
@@ -65,13 +67,24 @@ def take_adp_exp_mnist(num_iid=5, dir_name="5iid5niid_2class"):
         X_train_node, Y_train_node = shuffle(X_train_node, Y_train_node)
         np.save(f"datasets/mnist/{dir_name}/X_train_node{i:03}.npy", X_train_node)
         np.save(f"datasets/mnist/{dir_name}/Y_train_node{i:03}.npy", Y_train_node)
-    for i in range(num_niid, 10):
-        a=1
-    ####################################################
+        print(len(X_train), len(Y_train))
+
+    for i in range(num_iid, 10):
+        all_id = shuffle(np.arange(10))
+        client_class = all_id[:x_class]
+        X_train_node = [X_train[6000*label + i*60: 6000*label + (i+1)*60] for label in client_class]
+        Y_train_node = [Y_train[6000*label + i*60: 6000*label + (i+1)*60] for label in client_class]
+        X_train_node = np.concatenate(X_train_node, axis=0)
+        Y_train_node = np.concatenate(Y_train_node, axis=0)
+        X_train_node, Y_train_node = shuffle(X_train_node, Y_train_node)
+        np.save(f"datasets/mnist/{dir_name}/X_train_node{i:03}.npy", X_train_node)
+        np.save(f"datasets/mnist/{dir_name}/Y_train_node{i:03}.npy", Y_train_node)
+        print(len(X_train), len(Y_train))
 
 
 if __name__ == "__main__":
     # take_test_mnist()
     # take_iid_mnist()
     # take_niid_shard_mnist()
-    take_adp_exp_mnist(10, "10iid")
+    # take_adp_exp_mnist(10, "10iid")
+    take_adp_exp_mnist(num_iid=5, x_class=2, dir_name="5iid5niid_2class")

@@ -102,12 +102,9 @@ class FedAvg:
             self.clients.train_all_members("saved/server_w.h5", members_id, self.dataset_dir)
             self.server.aggregation(self.clients.num_samples, self.clients.clients_w)
             new_loss = self.server.eval()[0]
-            # if new_loss > loss:
+            # if i % 8 == 7:
             #     for model in self.clients.client_models:
-            #         model.compile(SGD(learning_rate=model.optimizer.lr * 0.75), loss="categorical_crossentropy",
-            #                       metrics=["acc"])
-            # else:
-            #     loss = new_loss
+            #         model.optimizer.lr = model.optimizer.lr * 0.5
 
 
 if __name__ == "__main__":
