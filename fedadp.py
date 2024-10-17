@@ -35,7 +35,7 @@ class ClientsAdp:
             X_train = np.load(os.path.join(dataset_dir, f"X_train_node{i:03}.npy"))
             Y_train = np.load(os.path.join(dataset_dir, f"Y_train_node{i:03}.npy"))
             X_train = np.expand_dims(X_train, axis=-1) / 255.
-            # X_train = (X_train - 0.1307) / 0.3081
+            X_train = (X_train - 0.1307) / 0.3081               # norm
             Y_train = keras.utils.to_categorical(Y_train, num_classes=10)
             self.num_samples[i] = len(X_train)
 
@@ -57,7 +57,7 @@ class ServerAdp:
         self.X_test = np.load(os.path.join(eval_dir, "X_test.npy"))
         self.Y_test = np.load(os.path.join(eval_dir, "Y_test.npy"))
         self.X_test = np.expand_dims(self.X_test, axis=-1) / 255.
-        # self.X_test = (self.X_test - 0.1307) / 0.3081
+        self.X_test = (self.X_test - 0.1307) / 0.3081           # norm
         self.Y_test = keras.utils.to_categorical(self.Y_test, num_classes=10)
 
     def aggregation(self, clients_num_samples, clients_w):
@@ -85,19 +85,20 @@ class FedAdp:
         self.num_round = num_round
         self.dataset_dir = f"datasets/mnist/{distribution}"
         self.clients = ClientsAdp(batch_size, epochs, lr)
-        self.server = ServerAdp("saved/server_w_1.h5", "datasets/mnist/test")
+        self.server = ServerAdp("saved/server_w_0.h5", "datasets/mnist/test")
 
     def pipline(self):
         for i in range(self.num_round):
             print(f"---- Round {i}, lr: {self.clients.client_models[0].optimizer.lr.numpy()}")
-            self.clients.train_all_members("saved/server_w_1.h5", self.dataset_dir)
+            self.clients.train_all_members("saved/server_w_0.h5", self.dataset_dir)
             self.server.aggregation(self.clients.num_samples, self.clients.clients_w)
             self.server.eval()
 
-            for model in self.clients.client_models:
-                model.optimizer.lr = model.optimizer.lr * 0.995
+            # for model in self.clients.client_models:
+            #     model.optimizer.lr = model.optimizer.lr * 0.995
+            #     model.compile(SGD(learning_rate=model.optimizer.lr), loss="categorical_crossentropy", metrics=["acc"])
 
 
 if __name__ == "__main__":
-    fed_adp = FedAdp(300, 10, 1, 0.01, "10iid")
+    fed_adp = FedAdp(300, 32, 1, 0.01, "5i5ni2c_r1")
     fed_adp.pipline()

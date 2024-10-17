@@ -56,30 +56,43 @@ def take_adp_exp_mnist(num_iid=5, x_class=2, dir_name="5iid5niid_2class"):
     X_train = mnist[0][0]
     Y_train = mnist[0][1]
     X_train, Y_train = shuffle(X_train, Y_train)
-    idx_order = np.argsort(Y_train)[::1]
-    Y_train = Y_train[idx_order]
-    X_train = X_train[idx_order]
+
     for i in range(num_iid):
-        X_train_node = [X_train[6000*j+i*60: 6000*j+(i+1)*60] for j in range(10)]
-        Y_train_node = [Y_train[6000*j+i*60: 6000*j+(i+1)*60] for j in range(10)]
-        X_train_node = np.concatenate(X_train_node, axis=0)
-        Y_train_node = np.concatenate(Y_train_node, axis=0)
-        X_train_node, Y_train_node = shuffle(X_train_node, Y_train_node)
+        X_train_node = X_train[600 * i: 600 * (i + 1)]
+        Y_train_node = Y_train[600 * i: 600 * (i + 1)]
+
+        check_label = [0] * 10
+        for l in Y_train_node:
+            check_label[l] += 1
+        print(i, check_label)
+
         np.save(f"datasets/mnist/{dir_name}/X_train_node{i:03}.npy", X_train_node)
         np.save(f"datasets/mnist/{dir_name}/Y_train_node{i:03}.npy", Y_train_node)
-        print(len(X_train), len(Y_train))
 
+    start_id = 600 * num_iid
     for i in range(num_iid, 10):
         all_id = shuffle(np.arange(10))
         client_class = all_id[:x_class]
-        X_train_node = [X_train[6000*label + i*60: 6000*label + (i+1)*60] for label in client_class]
-        Y_train_node = [Y_train[6000*label + i*60: 6000*label + (i+1)*60] for label in client_class]
-        X_train_node = np.concatenate(X_train_node, axis=0)
-        Y_train_node = np.concatenate(Y_train_node, axis=0)
-        X_train_node, Y_train_node = shuffle(X_train_node, Y_train_node)
+        X_train_node, Y_train_node = [], []
+        num_data_client = 0
+        for j in range(start_id, 60000):
+            if Y_train[j] in client_class:
+                X_train_node.append(X_train[j])
+                Y_train_node.append(Y_train[j])
+                num_data_client += 1
+            if num_data_client == 600:
+                start_id = j
+                break
+
+        check_label = [0] * 10
+        for l in Y_train_node:
+            check_label[l] += 1
+        print(i, check_label)
+
+        X_train_node = np.array(X_train_node)
+        Y_train_node = np.array(Y_train_node)
         np.save(f"datasets/mnist/{dir_name}/X_train_node{i:03}.npy", X_train_node)
         np.save(f"datasets/mnist/{dir_name}/Y_train_node{i:03}.npy", Y_train_node)
-        print(len(X_train), len(Y_train))
 
 
 if __name__ == "__main__":
@@ -87,4 +100,4 @@ if __name__ == "__main__":
     # take_iid_mnist()
     # take_niid_shard_mnist()
     # take_adp_exp_mnist(10, "10iid")
-    take_adp_exp_mnist(num_iid=5, x_class=2, dir_name="5iid5niid_2class")
+    take_adp_exp_mnist(num_iid=5, x_class=2, dir_name="5i5ni2c_r1")

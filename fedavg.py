@@ -39,7 +39,7 @@ class ClientsAvg:
             X_train = np.load(os.path.join(dataset_dir, f"X_train_node{idx:03}.npy"))
             Y_train = np.load(os.path.join(dataset_dir, f"Y_train_node{idx:03}.npy"))
             X_train = np.expand_dims(X_train, axis=-1) / 255.
-            # X_train = (X_train - 0.1307) / 0.3081
+            X_train = (X_train - 0.1307) / 0.3081               # norm
             Y_train = keras.utils.to_categorical(Y_train, num_classes=10)
             self.num_samples[i] = len(X_train)
 
@@ -61,7 +61,7 @@ class ServerAvg:
         self.X_test = np.load(os.path.join(eval_dir, "X_test.npy"))
         self.Y_test = np.load(os.path.join(eval_dir, "Y_test.npy"))
         self.X_test = np.expand_dims(self.X_test, axis=-1) / 255.
-        # self.X_test = (self.X_test - 0.1307) / 0.3081
+        self.X_test = (self.X_test - 0.1307) / 0.3081           # norm
         self.Y_test = keras.utils.to_categorical(self.Y_test, num_classes=10)
 
     def aggregation(self, clients_num_samples, clients_w):
@@ -108,5 +108,5 @@ class FedAvg:
 
 
 if __name__ == "__main__":
-    fed_avg = FedAvg(300, 100, 0.1, 10, 5, 0.01, "niid_shard")
+    fed_avg = FedAvg(300, 100, 0.1, 10, 5, 0.05, "iid")
     fed_avg.pipline()
