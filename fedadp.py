@@ -8,6 +8,7 @@ import numpy as np
 import random
 import keras
 from tqdm import tqdm
+from fedavg import ServerAvg
 
 
 class ClientsAdp:
@@ -48,33 +49,88 @@ class ClientsAdp:
             pbar.set_description(f"Processing client {i}")
 
 
-class ServerAdp:
+class ServerAdp(ServerAvg):
     def __init__(self, server_w, eval_dir):
-        self.server_w = server_w
-        self.model = CNN_MNIST("server")
-        self.model.compile(loss="categorical_crossentropy", metrics=["acc"])
-        self.model.save_weights(self.server_w)
-        self.X_test = np.load(os.path.join(eval_dir, "X_test.npy"))
-        self.Y_test = np.load(os.path.join(eval_dir, "Y_test.npy"))
-        self.X_test = np.expand_dims(self.X_test, axis=-1) / 255.
-        self.X_test = (self.X_test - 0.1307) / 0.3081           # norm
-        self.Y_test = keras.utils.to_categorical(self.Y_test, num_classes=10)
+        super().__init__(server_w, eval_dir)
+        self.pre_w = []
+        for layer in self.model.layers:
+            if "cv" in layer.name or "den" in layer.name:
+                w = layer.get_weights()
+                kernel = w[0].flatten()
+                bias = w[1].flatten()
+                self.pre_w.append(kernel)
+                self.pre_w.append(bias)
+        self.pre_w = np.concatenate(self.pre_w, axis=0)
+        self.pre_thetas = None
 
-    def aggregation(self, clients_num_samples, clients_w):
+    def cosine_similarity(self, a, b):
+        return np.sum(a * b) / (np.sqrt(np.sum(a ** 2)) * np.sqrt(np.sum(b ** 2)))
+
+    def gompertz_func(self, theta, alpha=5.):
+        return alpha * (1 - np.exp(-np.exp(-alpha * (theta - 1))))
+
+    def aggregation(self, clients_num_samples, clients_w, t):
         D = np.array(clients_num_samples)
         D = D / np.sum(D)
+        num_participant = len(clients_num_samples)  # = 10
+
+        flatten_ws = [[] for i in range(num_participant + 1)]  # 10 clients + 1 global
         for layer in self.model.layers:
             if "cv" in layer.name or "den" in layer.name:
                 clients_w_this_layer = clients_w[layer.name]
-                client_kernels = [clients_w_this_layer[i][0] for i in range(10)]
-                client_biases = [clients_w_this_layer[i][1] for i in range(10)]
-                kernel = [client_kernels[i] * D[i] for i in range(10)]
-                bias = [client_biases[i] * D[i] for i in range(10)]
+                client_kernels = [clients_w_this_layer[i][0].flatten() for i in range(num_participant)]
+                client_biases = [clients_w_this_layer[i][1].flatten() for i in range(num_participant)]
+
+                for i in range(num_participant):
+                    flatten_ws[i].append(client_kernels[i])
+                    flatten_ws[i].append(client_biases[i])
+
+                global_kernel = [client_kernels[i] * D[i] for i in range(num_participant)]
+                global_bias = [client_biases[i] * D[i] for i in range(num_participant)]
+                global_kernel = sum(global_kernel)
+                global_bias = sum(global_bias)
+
+                flatten_ws[-1].append(global_kernel)
+                flatten_ws[-1].append(global_bias)
+
+        flatten_ws = [np.concatenate(w, axis=0) for w in flatten_ws]
+
+        gradients = [self.pre_w - w for w in flatten_ws]
+        client_gs = gradients[:-1]
+        global_g = gradients[-1]
+        cosine_similarities = [self.cosine_similarity(g, global_g) for g in client_gs]
+        thetas = np.array([np.arccos(cos) for cos in cosine_similarities])
+        print("----1---- thetas:", thetas)
+        print("----2---- pre_thetas:", self.pre_thetas)
+
+        if self.pre_thetas is None:
+            thetas_smooth = thetas
+        else:
+            thetas_smooth = self.pre_thetas * (t-1)/t + thetas * 1/t
+        print("----3---- thetas_smooth:", thetas_smooth)
+
+        re_weights = np.exp(self.gompertz_func(thetas_smooth, alpha=5.))
+        re_weights = re_weights * D
+        re_weights = re_weights / np.sum(re_weights)
+        print("----4---- re_weights:", re_weights)
+
+        assert np.all(re_weights >= 0), "weights should be non-negative values"
+        new_w = [flatten_ws[i] * re_weights[i] for i in range(num_participant)]
+        new_w = sum(new_w)
+        for layer in self.model.layers:
+            if "cv" in layer.name or "den" in layer.name:
+                clients_w_this_layer = clients_w[layer.name]
+                client_kernels = [clients_w_this_layer[i][0] for i in range(num_participant)]
+                client_biases = [clients_w_this_layer[i][1] for i in range(num_participant)]
+                kernel = [client_kernels[i] * re_weights[i] for i in range(num_participant)]
+                bias = [client_biases[i] * re_weights[i] for i in range(num_participant)]
                 kernel = sum(kernel)
                 bias = sum(bias)
                 layer.set_weights([kernel, bias])
 
         self.model.save_weights(self.server_w)
+        self.pre_w = new_w
+        self.pre_thetas = thetas_smooth
 
     def eval(self):
         return self.model.evaluate(self.X_test, self.Y_test)
@@ -91,12 +147,12 @@ class FedAdp:
         for i in range(self.num_round):
             print(f"---- Round {i}, lr: {self.clients.client_models[0].optimizer.lr.numpy()}")
             self.clients.train_all_members("saved/server_w_0.h5", self.dataset_dir)
-            self.server.aggregation(self.clients.num_samples, self.clients.clients_w)
+            self.server.aggregation(self.clients.num_samples, self.clients.clients_w, i+1)
             self.server.eval()
 
-            # for model in self.clients.client_models:
-            #     model.optimizer.lr = model.optimizer.lr * 0.995
-            #     model.compile(SGD(learning_rate=model.optimizer.lr), loss="categorical_crossentropy", metrics=["acc"])
+            for model in self.clients.client_models:
+                model.optimizer.lr = model.optimizer.lr * 0.995
+                model.compile(SGD(learning_rate=model.optimizer.lr), loss="categorical_crossentropy", metrics=["acc"])
 
 
 if __name__ == "__main__":

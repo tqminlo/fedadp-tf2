@@ -91,13 +91,13 @@ class FedAvg:
         self.dataset_dir = f"datasets/mnist/{distribution}"
         self.clients = ClientsAvg(num_all_client, ratio_c, batch_size, epochs, lr)
         self.server = ServerAvg("saved/server_w.h5", "datasets/mnist/test")
-        self.num_participant = self.clients.num_client_a_round
+        self.num_client_a_round = self.clients.num_client_a_round
 
     def pipline(self):
         all_id = [i for i in range(100)]
         loss = 100
         for i in range(self.num_round):
-            members_id = random.sample(all_id, self.num_participant)
+            members_id = random.sample(all_id, self.num_client_a_round)
             print(f"---- Round {i}, lr: {self.clients.client_models[0].optimizer.lr.numpy()}, clients: {members_id}")
             self.clients.train_all_members("saved/server_w.h5", members_id, self.dataset_dir)
             self.server.aggregation(self.clients.num_samples, self.clients.clients_w)
