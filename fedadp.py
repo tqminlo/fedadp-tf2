@@ -8,6 +8,7 @@ import numpy as np
 import random
 import keras
 from tqdm import tqdm
+import argparse
 from fedavg import ServerAvg
 
 
@@ -145,16 +146,24 @@ class FedAdp:
 
     def pipline(self):
         for i in range(self.num_round):
-            print(f"---- Round {i}, lr: {self.clients.client_models[0].optimizer.lr.numpy()}")
+            print(f"---- Round {i+1}, lr: {self.clients.client_models[0].optimizer.lr.numpy()}")
             self.clients.train_all_members("saved/server_w_0.h5", self.dataset_dir)
             self.server.aggregation(self.clients.num_samples, self.clients.clients_w, i+1)
             self.server.eval()
 
-            for model in self.clients.client_models:
-                model.optimizer.lr = model.optimizer.lr * 0.995
-                model.compile(SGD(learning_rate=model.optimizer.lr), loss="categorical_crossentropy", metrics=["acc"])
+            # for model in self.clients.client_models:
+            #     model.optimizer.lr = model.optimizer.lr * 0.995
+            #     model.compile(SGD(learning_rate=model.optimizer.lr), loss="categorical_crossentropy", metrics=["acc"])
 
 
 if __name__ == "__main__":
-    fed_adp = FedAdp(300, 32, 1, 0.01, "5i5ni2c_r1")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_round", type=int, default=300)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--lr", type=float, default=0.01)
+    parser.add_argument("--exp", type=str, default="5i5ni2c_r1")
+    args = parser.parse_args()
+
+    fed_adp = FedAdp(args.num_round, args.batch_size, args.epochs, args.lr, args.exp)
     fed_adp.pipline()

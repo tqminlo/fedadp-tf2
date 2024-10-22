@@ -8,6 +8,7 @@ import numpy as np
 import random
 import keras
 from tqdm import tqdm
+import argparse
 
 
 class ClientsAvg:
@@ -92,9 +93,10 @@ class FedAvg:
         self.clients = ClientsAvg(num_all_client, ratio_c, batch_size, epochs, lr)
         self.server = ServerAvg("saved/server_w.h5", "datasets/mnist/test")
         self.num_client_a_round = self.clients.num_client_a_round
+        self.num_all_client = self.clients.num_all_client
 
     def pipline(self):
-        all_id = [i for i in range(100)]
+        all_id = [i for i in range(self.num_all_client)]
         loss = 100
         for i in range(self.num_round):
             members_id = random.sample(all_id, self.num_client_a_round)
@@ -102,11 +104,21 @@ class FedAvg:
             self.clients.train_all_members("saved/server_w.h5", members_id, self.dataset_dir)
             self.server.aggregation(self.clients.num_samples, self.clients.clients_w)
             new_loss = self.server.eval()[0]
-            # if i % 8 == 7:
-            #     for model in self.clients.client_models:
-            #         model.optimizer.lr = model.optimizer.lr * 0.5
+            # for model in self.clients.client_models:
+            #     model.optimizer.lr = model.optimizer.lr * 0.995
+            #     model.compile(SGD(learning_rate=model.optimizer.lr), loss="categorical_crossentropy", metrics=["acc"])
 
 
 if __name__ == "__main__":
-    fed_avg = FedAvg(300, 100, 0.1, 10, 5, 0.05, "iid")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_round", type=int, default=300)
+    parser.add_argument("--all_clients", type=int, default=100)
+    parser.add_argument("--ratio_c", type=float, default=0.1)
+    parser.add_argument("--batch_size", type=int, default=10)
+    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--lr", type=float, default=0.1)
+    parser.add_argument("--exp", type=str, default="iid")
+    args = parser.parse_args()
+
+    fed_avg = FedAvg(args.num_round, args.all_clients, args.ratio_c, args.batch_size, args.epochs, args.lr, args.exp)
     fed_avg.pipline()
