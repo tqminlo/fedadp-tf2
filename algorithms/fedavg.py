@@ -1,7 +1,6 @@
 import os
-from keras.layers import *
-from keras.models import Model
-import tensorflow as tf
+import sys
+sys.path.append("E:/tqminlo\Master\FL/fedadp-tf2")
 from keras.optimizers import SGD, Adam
 from models import CNN_MNIST
 import numpy as np
@@ -104,9 +103,9 @@ class FedAvg:
             self.clients.train_all_members("saved/server_w.h5", members_id, self.dataset_dir)
             self.server.aggregation(self.clients.num_samples, self.clients.clients_w)
             new_loss = self.server.eval()[0]
-            # for model in self.clients.client_models:
-            #     model.optimizer.lr = model.optimizer.lr * 0.995
-            #     model.compile(SGD(learning_rate=model.optimizer.lr), loss="categorical_crossentropy", metrics=["acc"])
+            for model in self.clients.client_models:
+                model.optimizer.lr = model.optimizer.lr * 0.995
+                model.compile(SGD(learning_rate=model.optimizer.lr), loss="categorical_crossentropy", metrics=["acc"])
 
 
 if __name__ == "__main__":

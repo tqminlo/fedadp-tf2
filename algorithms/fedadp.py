@@ -1,7 +1,6 @@
 import os
-from keras.layers import *
-from keras.models import Model
-import tensorflow as tf
+import sys
+sys.path.append("E:/tqminlo\Master\FL/fedadp-tf2")
 from keras.optimizers import SGD, Adam
 from models import CNN_MNIST
 import numpy as np
