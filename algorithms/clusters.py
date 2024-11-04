@@ -9,7 +9,7 @@ import keras
 from tqdm import tqdm
 import argparse
 from fedavg import *
-from sklearn.cluster import KMeans, MeanShift
+from sklearn.cluster import KMeans, MeanShift, DBSCAN
 
 
 class FedClusters:
@@ -21,12 +21,13 @@ class FedClusters:
         self.server = ServerAvg("saved/server_w_1.h5", "datasets/mnist/test")
         self.num_client_a_round = self.clients.num_client_a_round
         self.num_all_client = self.clients.num_all_client
-        if distribution == "clusters_e0":
-            num_cluster = 5
-        else:
-            num_cluster = 10
-        self.clust = KMeans(n_clusters=num_cluster)
+        # if distribution == "clusters_e0":
+        #     num_cluster = 5
+        # else:
+        #     num_cluster = 10
+        # self.clust = KMeans(n_clusters=num_cluster)
         # self.clust = MeanShift(bandwidth=10)
+        self.clust = DBSCAN(eps=50, min_samples=5)
 
     def clustering(self):
         check_label_all = []
